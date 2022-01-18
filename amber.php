@@ -1,9 +1,9 @@
 <?php
 /**
- * Plugin Name: Amber
+ * Plugin Name: AmberIA
  * Plugin URI: http://amberlink.org
  * Description: Amber keeps links working on blogs and websites.
- * Version: 1.4.4
+ * Version: 0.1
  * Author: Berkman Center for Internet & Society
  * Author URI: https://cyber.law.harvard.edu
  * License: GPL3
@@ -189,6 +189,7 @@ class Amber {
 		        error_log(Amber::get_option('amber_perma_server_api_url', 'https://api.perma.cc',''));
 		        break;
 	      	case AMBER_BACKEND_INTERNET_ARCHIVE:
+				//error_log("InternetArchiveFetcher found");
 	        	$fetcher = new InternetArchiveFetcher(Amber::get_storage_instance($backend), array());
 	        	break;
 	    	case AMBER_BACKEND_AMAZON_S3:
@@ -420,7 +421,7 @@ class Amber {
 	}
 
 	private static function cache_link($item, $force = false) {
-
+		//error_log(join(":", array(__FILE__, __METHOD__, "cache_link")));
 		$checker = Amber::get_checker();
 		$status =  Amber::get_status();
 		$fetcher = Amber::get_fetcher();
@@ -430,6 +431,7 @@ class Amber {
 		$last_check = $status->get_check($item);
 		if (($update = $checker->check(empty($last_check) ? array('url' => $item) : $last_check, $force)) !== false) {
 			/* There's an updated check result to save */
+			//error_log(join(":", array(__FILE__, __METHOD__, "There's an updated check result to save")));
 			$status->save_check($update);
 			if ($availability && isset($update['details']) && (Amber::get_option('amber_report_availability', AMBER_REPORT_AVAILABILITY_NONE) == AMBER_REPORT_AVAILABILITY_NETCLERK)) {
 				$availability->report_status($item, $update['details']);
@@ -437,9 +439,14 @@ class Amber {
 
 			/* Now cache the item if we should */
 	  		$strategy = Amber::get_option('amber_update_strategy', 0);
+			/*error_log(join(":", array(__FILE__, __METHOD__, "update['status']",$update['status'])));
+			error_log(join(":", array(__FILE__, __METHOD__, "strategy",$strategy)));
+			error_log(join(":", array(__FILE__, __METHOD__, "status->has_cache(item)",$status->has_cache($item))));
+			error_log(join(":", array(__FILE__, __METHOD__, "(!strategy || !status->has_cache(item)))",(!$strategy || !$status->has_cache($item))) ));*/
 			if ($update['status'] && (!$strategy || !$status->has_cache($item))) {
 
 				/* Save the item to the primary storage location */
+				//error_log(join(":", array(__FILE__, __METHOD__, "Attempting to fetch")));
 				$result = Amber::fetch_item($item, $fetcher, $status);
 
 				/* Save the item to any alternate storage locations */
@@ -466,11 +473,13 @@ class Amber {
 	 */
 	private static function fetch_item($item, $fetcher, $status) {
 		$cache_metadata = array();
+		//error_log(join(":", array(__FILE__, __METHOD__, "fetch_item")));
 		try {
 			$cache_metadata = $fetcher->fetch($item);
 		} catch (RuntimeException $re) {
 			$update['message'] = $re->getMessage();
 			$update['url'] = $item;
+			//error_log(join(":", array(__FILE__, __METHOD__, json_encode($update), $item)));
 			$status->save_check($update);
 			return false;
 		}
@@ -496,7 +505,7 @@ class Amber {
 	  			"UPDATE ${prefix}amber_queue SET locked = %d WHERE url = %s",
 	  			array(time(), $row['url'])
 	  			));
-		    Amber::cache_link($row['url']);
+		    Amber::cache_link($row['url'],TRUE);
   			$wpdb->query($wpdb->prepare(
 	  			"DELETE from ${prefix}amber_queue where url = %s",
 	  			array($row['url'])
@@ -649,6 +658,9 @@ class Amber {
 		add_rewrite_rule('^.*amber/cache/([a-f0-9]+)/?$', '/index.php?amber_cache=$1', "top");
 		add_rewrite_rule('^.*amber/cacheframe/([a-f0-9]+)/?$', '/index.php?amber_cacheframe=$1', "top");
 		add_rewrite_rule('^.*amber/cacheframe/([a-f0-9]+)/assets/(.*)/?$', '/index.php?amber_cacheframe=$1&amber_asset=$2', "top");
+		add_rewrite_rule('^.*amber/logcacheview?(.*)/?$', '/wp-admin/admin-ajax.php?action=amber_logcacheview&$1', "top");
+		add_rewrite_rule('^.*amber/status?(.*)/?$', '/wp-admin/admin-ajax.php?action=amber_status&$1', "top");
+		add_rewrite_rule('^.*amber/memento?(.*)/?$', '/wp-admin/admin-ajax.php?action=amber_memento&$1', "top");
 	}
 
 	/**
@@ -810,17 +822,6 @@ EOF;
 	 */
 	public static function validate_cache_referrer() {
 		$result = FALSE;
-		if (!function_exists('getallheaders')) {
-			function getallheaders() {
-				$headers = array();
-				foreach ($_SERVER as $name => $value) {
-					if (substr($name, 0, 5) == 'HTTP_') {
-						$headers[str_replace(' ', '-', ucwords(strtolower(str_replace('_', ' ', substr($name, 5)))))] = $value;
-					}
-				}
-				return $headers;
-			}
-		}
 		$headers = getallheaders();
 		if (isset($headers['Referer'])) {
 			/* Option 1: The Referer URL should be the same as the current URL, except with
@@ -879,6 +880,69 @@ EOF;
 		print $url;
 		die();
 	}
+	
+	/* Respond to an ajax call from the dashboard as part of the
+	   "Cache all links" process. Returning an empty string signifies
+	   that all links have been cached.
+	 */
+	public static function ajax_force_cache_urls() {
+		check_ajax_referer( 'amber_dashboard' );
+		$urls = $_POST['urls'];
+	    //update_option(AMBER_VAR_LAST_CHECK_RUN, time());
+		//$url = Amber::dequeue_link();
+		foreach ($urls as $url) {
+			Amber::cache_link($url,TRUE);
+			print $url;
+			}
+		//error_log(join(":", array(__FILE__, __METHOD__, "ajax_force_cache_urls",json_encode($urls))));
+		die();
+	}
+		/* Respond to a bulk action call from the dashboard as part of the
+	   "Cache all links" process. Returning an empty string signifies
+	   that all links have been cached.
+	 */
+
+    public static function bulk_action_mass_resave_force_cache_urls($urls) {
+		//check_ajax_referer( 'amber_dashboard' );
+		//$urls = $_POST['urls'];
+	    //update_option(AMBER_VAR_LAST_CHECK_RUN, time());
+		//$url = Amber::dequeue_link();
+		//error_log(join(":", array(__FILE__, __METHOD__, "bulk_action_mass_resave_force_cache_urls")));
+		foreach ($urls as $url) {
+			//error_log(join(":", array(__FILE__, __METHOD__,$url)));
+			Amber::cache_link($url,TRUE);
+			//print $url;
+			}
+		//error_log(join(":", array(__FILE__, __METHOD__, "ajax_force_cache_urls",json_encode($urls))));
+		//die();
+	}
+	
+	public static function bulk_action_mass_delete($urls) {
+        //check_admin_referer( 'delete_link_' . $id );
+		//error_log(join(":", array(__FILE__, __METHOD__, "Triggered bulk_action_mass_delete")));
+        $storage = Amber::get_storage(); //Amber::get_storage_instance($provider);
+		
+        if (!is_null($storage)) 
+			{
+			$provider = $storage->provider_id();
+			//error_log(join(":", array(__FILE__, __METHOD__, "storage->provider_id()",$storage->provider_id())));
+			foreach($urls as $url)
+				{
+				$url_id = md5($url);
+				$storage->delete(array('id' => $url_id));
+				$status = Amber::get_status();
+				$status->delete($url_id, $provider);
+				}
+			return ;
+			}
+		foreach($urls as $url)
+			{
+			$url_id = md5($url);
+			$status = Amber::get_status();
+			$status->delete($url_id, $provider);
+			}
+        return ;
+    }
 
 	/* Respond to an ajax call from the dashboard to kick off the
 	   scanning process by identifying all pages and posts that
@@ -987,13 +1051,12 @@ jQuery(document).ready(function($) {
 </div>';
 		}
 
-		if (!function_exists('curl_init')) {
+		if (!in_array("curl", get_loaded_extensions())) {
 			print '
 <div class="error">
 	<p>The PHP cURL extension must be installed for Amber to work properly. Ask your web host to install it, or follow the instructions <a href="https://secure.php.net/manual/en/curl.installation.php" target="_blank">here</a>.</p>
 </div>';
 		}
-
 	}
 
  	public static function ajax_log_cache_view() {
@@ -1138,10 +1201,10 @@ add_action( 'wp_ajax_amber_cache_now', array('Amber', 'ajax_cache_now') );
 add_action( 'wp_ajax_amber_scan_start', array('Amber', 'ajax_scan_start') );
 add_action( 'wp_ajax_amber_scan', array('Amber', 'ajax_scan') );
 add_action( 'wp_ajax_nopriv_amber_logcacheview', array('Amber', 'ajax_log_cache_view') );
-add_action( 'wp_ajax_amber_logcacheview', array('Amber', 'ajax_log_cache_view') );
 add_action( 'wp_ajax_nopriv_amber_status', array('Amber', 'ajax_get_url_status') );
 add_action( 'wp_ajax_amber_status', array('Amber', 'ajax_get_url_status') );
 add_action( 'wp_ajax_nopriv_amber_memento', array('Amber', 'ajax_get_memento') );
 add_action( 'wp_ajax_amber_memento', array('Amber', 'ajax_get_memento') );
+add_action( 'wp_ajax_amber_force_cache_urls', array('Amber', 'ajax_force_cache_urls') );
 
 ?>

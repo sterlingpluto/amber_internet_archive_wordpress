@@ -101,7 +101,7 @@ class AmberStatus implements iAmberStatus {
     $prefix = $this->table_prefix;
     foreach (array('url') as $key) {
       if (!array_key_exists($key,$data)) {
-        error_log(join(":", array(__FILE__, __METHOD__, "Missing required key when updating status check", $key)));
+        //error_log(join(":", array(__FILE__, __METHOD__, "Missing required key when updating status check", $key)));
         return false;
       }
     }
@@ -149,7 +149,7 @@ class AmberStatus implements iAmberStatus {
 
     foreach (array('id', 'url', 'location', 'date', 'type', 'size', 'provider', 'provider_id') as $key) {
       if (!array_key_exists($key,$data)) {
-        error_log(join(":", array(__FILE__, __METHOD__, "Missing required key when updating cache", $key)));
+        //error_log(join(":", array(__FILE__, __METHOD__, "Missing required key when updating cache", $key)));
         return false;
       }
     }
@@ -190,7 +190,7 @@ class AmberStatus implements iAmberStatus {
     $rows = $this->db->selectAll("SELECT url FROM ${prefix}amber_check WHERE next_check < %d ORDER BY next_check ASC",
                                     array(time()));
     if ($result === FALSE) {
-      error_log(join(":", array(__FILE__, __METHOD__, "Error retrieving URLs to check from database")));
+      //error_log(join(":", array(__FILE__, __METHOD__, "Error retrieving URLs to check from database")));
       return array();
     } else {
       foreach ($rows as $row) {
@@ -302,7 +302,7 @@ class AmberStatus implements iAmberStatus {
    */
   public function delete($id, $provider = 0) {
     $prefix = $this->table_prefix;
-
+	//error_log(join(":", array(__FILE__, __METHOD__, "Attempted to delete from status obj")));
     $this->db->delete("DELETE FROM ${prefix}amber_cache WHERE id = %s AND provider = %d", array($id, $provider));
     $this->db->delete("DELETE FROM ${prefix}amber_check WHERE id = %s AND %s not in (select id from ${prefix}amber_cache where id = %s)", array($id, $id, $id));
   }

@@ -13,9 +13,10 @@ class AmberNetworkUtils {
   private static function get_user_agent_string() {
     /* In the future, we could increment this automatically, but version number is not currently
        included in the code as part of our build process. */
-    $version = "1.0";
+    //$version = "1.0";
     $hostname = gethostname();
-    $result = "Amber/${version} (+http://${hostname} http://amberlink.org/fetcher)";
+    //$result = "Amber/${version} (+http://${hostname} http://amberlink.org/fetcher)";
+	$result = "Mozilla/5.0 (Windows NT 10.0; rv:78.0) Gecko/20100101 Firefox/78.0";
     return $result;
   }
 
@@ -159,6 +160,7 @@ class AmberNetworkUtils {
           $header = substr($data, 0, $header_size-1);
           $body = substr($data, $header_size);
           $headers = AmberNetworkUtils::extract_headers($header);
+		  //error_log(join(":", array(__FILE__, __METHOD__, json_encode(array("headers" => $headers, "body" => $body, "info" => $response_info)))));
           $result[$url] = array("headers" => $headers, "body" => $body, "info" => $response_info);
           curl_multi_remove_handle($multi, $channel);
         }
@@ -229,6 +231,7 @@ class AmberNetworkUtils {
     try {
 
       $ch = curl_init($url);
+	  //error_log(join(":", array(__FILE__, __METHOD__, $url)));
       if (curl_setopt_array($ch, $additional_options + $options) === FALSE) {
         throw new RuntimeException(join(":", array(__FILE__, __METHOD__, "Error setting CURL options", $url, curl_error($ch))));
       }
@@ -239,6 +242,7 @@ class AmberNetworkUtils {
         curl_setopt($ch, CURLOPT_URL, $newurl);
         $response = curl_exec($ch);
         $response_info = curl_getinfo($ch);
+		//error_log(join(":", array(__FILE__, __METHOD__, json_encode($response), $newurl)));
         if (in_array($response_info['http_code'], array(301,302,307,308))) {
           $newurl = $response_info['redirect_url'];
         } else if ($meta = AmberNetworkUtils::find_meta_redirect($response)) {

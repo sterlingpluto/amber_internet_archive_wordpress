@@ -1,5 +1,5 @@
 <?php
-
+//require_once 'Amber.php';
 if(!class_exists('WP_List_Table')){
     require_once( ABSPATH . 'wp-admin/includes/class-wp-list-table.php' );
 }
@@ -44,12 +44,23 @@ class Amber_List_Table extends WP_List_Table {
         $rows = $wpdb->get_results($statement, ARRAY_A);
         return $rows;
     }
+    /**
+	* Render the bulk edit checkbox
+	*
+	* @param array $item
+	*
+	* @return string
+	*/
 
     /** Column display functions **/
     function column_default($item, $column_name){
         return $item[$column_name];
     }
-
+    function column_cb( $item ) {
+	return sprintf(
+	'<input type="checkbox" name="multi_select[]" value="%s" />', $item['url']
+	);
+	}
     function column_site($item) {
         $actions = array();
         if (!empty($item['location'])) {
@@ -61,17 +72,33 @@ class Amber_List_Table extends WP_List_Table {
             $actions['view'] =  "<a href='${url}'>View</a>";
         }
         if (!empty($item['id'])) {
-            $url = join('/',array(get_site_url(),"wp-admin/tools.php?page=amber-dashboard"))
+            
+			//$bulk_action_nonce = wp_create_nonce( 'amber_dashbboard_bulk_actions' );
+			/*$force_resave_url = join('/',array(get_site_url(),"wp-admin/tools.php?page=amber-dashboard"))
+            . "&force_resave=" . $item['id']
+            . "&provider=" . $item['provider'];
+            $params = array('orderby', 'order');
+            foreach ($params as $param) {
+                if (isset($_REQUEST[$param])) {
+                    $force_resave_url .= "&${param}=" . $_REQUEST[$param];
+                }
+            }
+            $force_resave_url = wp_nonce_url($force_resave_url, 'force_resave_link_' . $item['id']);
+			
+            $actions['force_resave'] = "<a href='${force_resave_url}'>Force Re-Save</a>";*/
+			$actions['force_resave'] = "<a href='#!' class='force_resave' value='".$item['url']."'>Force Re-Save</a>";
+			
+			$delete_url = join('/',array(get_site_url(),"wp-admin/tools.php?page=amber-dashboard"))
             . "&delete=" . $item['id']
             . "&provider=" . $item['provider'];
             $params = array('orderby', 'order');
             foreach ($params as $param) {
                 if (isset($_REQUEST[$param])) {
-                    $url .= "&${param}=" . $_REQUEST[$param];
+                    $delete_url .= "&${param}=" . $_REQUEST[$param];
                 }
             }
-            $url = wp_nonce_url($url, 'delete_link_' . $item['id']);
-            $actions['delete'] = "<a href='${url}'>Delete</a>";
+            $delete_url = wp_nonce_url($delete_url, 'delete_link_' . $item['id']);
+            $actions['delete'] = "<a href='${delete_url}'>Delete</a>";
         }
 
         return parse_url($item['url'],PHP_URL_HOST) . $this->row_actions($actions);
@@ -137,6 +164,7 @@ class Amber_List_Table extends WP_List_Table {
     /** Define the columns and sortable columns for the table **/
     function get_columns(){
         $columns = array(
+            'cb'             => '<input type="checkbox" />',
             'site'           => 'Site',
             'url'            => 'URL',
             'status'         => 'Status',
@@ -169,6 +197,99 @@ class Amber_List_Table extends WP_List_Table {
         $this->single_row_columns( $item );
         echo '</tr>';
     }
+	
+	/**
+	* Returns an associative array containing the bulk action
+	*
+	* @return array
+	*/
+	public function get_bulk_actions() {
+	$actions = [
+	'bulk-re_save' => 'Force Re-Save','bulk-delete' => 'Delete'
+	];
+
+	return $actions;
+	}
+
+	public function process_bulk_action() {
+		//error_log(join(":", array(__FILE__, __METHOD__, "Bulk action triggered")));
+		//Detect when a bulk action is being triggered...
+		/*error_log(join(":", array(__FILE__, __METHOD__,  "this->current_action()", $this->current_action())));
+		if ( 'delete' === $this->current_action() ) 
+			{
+			error_log(join(":", array(__FILE__, __METHOD__, "Mass delete triggered")));
+			// In our file that handles the request, verify the nonce.
+			$nonce = esc_attr( $_REQUEST['_wpnonce'] );
+
+			if ( ! wp_verify_nonce( $nonce, 'amber_dashboard' ) ) 
+				{
+				error_log(join(":", array(__FILE__, __METHOD__, "Bad nonce")));
+				die();
+				}
+			else 
+				{
+				error_log(join(":", array(__FILE__, __METHOD__, "Mass delete triggered")));
+				exit;
+				}
+
+			}*/
+
+		// If the delete bulk action is triggered
+		//error_log(join(":", array(__FILE__, __METHOD__,"_GET['action']", $_GET['action'])));
+		//$nonce = esc_attr( $_REQUEST['_wpnonce'] );
+		if (isset($_GET['multi_select']))
+			{
+			/*if ( ! wp_verify_nonce( $nonce, 'amber_dashbboard_bulk_actions' ) ) 
+				{
+				error_log(join(":", array(__FILE__, __METHOD__,  wp_verify_nonce( $nonce, 'amber_dashbboard_bulk_actions' )?'true':'false')));
+				error_log(join(":", array(__FILE__, __METHOD__, "Bad nonce")));
+				die();
+				}*/
+			$selected_ids = esc_sql( $_GET['multi_select'] );
+			}
+		if ( ( isset( $_GET['action'] ) && $_GET['action'] == 'bulk-delete' ) || ( isset( $_GET['action2'] ) && $_GET['action2'] == 'bulk-delete' )) 
+			{
+
+			//$delete_ids = 
+			//error_log(join(":", array(__FILE__, __METHOD__, "Mass delete",json_encode($selected_ids))));
+			// loop over the array of record IDs and delete them
+			Amber::bulk_action_mass_delete($selected_ids);
+			/*foreach ( $selected_ids as $id ) 
+				{
+				error_log(join(":", array(__FILE__, __METHOD__, "Mass delete",$id)));
+				
+				}*/
+
+			wp_redirect( esc_url( add_query_arg() ) );
+			exit;
+			}
+		elseif( ( isset( $_GET['action'] ) && $_GET['action'] == 'bulk-re_save' ) || ( isset( $_GET['action2'] ) && $_GET['action2'] == 'bulk-re_save' )) 
+			{
+			//error_log(join(":", array(__FILE__, __METHOD__, "Mass Re-Save triggered")));
+		
+			Amber::bulk_action_mass_resave_force_cache_urls($selected_ids);//Amber_List_Table
+			//error_log(join(":", array(__FILE__, __METHOD__, "Mass Re-Save done")));
+			/*foreach ( $selected_ids as $id ) 
+				{
+				error_log(join(":", array(__FILE__, __METHOD__, "Mass Re-Save",$id)));
+				
+				}*/
+			}
+		}
+    public static function bulk_action_mass_resave_force_cache_urls($urls) {
+		//check_ajax_referer( 'amber_dashboard' );
+		//$urls = $_POST['urls'];
+	    //update_option(AMBER_VAR_LAST_CHECK_RUN, time());
+		//$url = Amber::dequeue_link();
+		error_log(join(":", array(__FILE__, __METHOD__, "bulk_action_mass_resave_force_cache_urls")));
+		foreach ($urls as $url) {
+			error_log(join(":", array(__FILE__, __METHOD__,$url)));
+			Amber::cache_link($url,TRUE);
+			//print $url;
+			}
+		//error_log(join(":", array(__FILE__, __METHOD__, "ajax_force_cache_urls",json_encode($urls))));
+		//die();
+	}
 
     function prepare_items() {
         $per_page = 20;
@@ -176,7 +297,7 @@ class Amber_List_Table extends WP_List_Table {
         $hidden = array();
         $sortable = $this->get_sortable_columns();
         $this->_column_headers = array($columns, $hidden, $sortable);
-
+        $this->process_bulk_action();
         /** Load the data from the database **/
         $data = $this->get_report();
 
@@ -365,8 +486,7 @@ class AmberDashboardPage
 
                 <div id="icon-users" class="icon32"><br/></div>
                 <h2>Amber Dashboard</h2>
-
-                <div id="amber-stats">
+                <div id="amber-stats" class='amber-panel'>
                     <h3>Global Statistics</h3>
                     <table>
                         <tbody>
@@ -381,18 +501,19 @@ class AmberDashboardPage
                     <?php submit_button("Scan content for links to preserve", "small", "scan"); ?>
                     <?php submit_button("Snapshot all new links", "small", "cache_now"); ?>
                     <?php submit_button("Export list of snapshots", "small", "export"); ?>
-
+					
                 </div>
             </form>
             <form  id="amber_dashboard-2">
+				
                 <input type="hidden" name="page" value="<?php echo $_REQUEST['page'] ?>" />
                 <?php $this->list_table->display() ?>
-
                 <div id="amber-lightbox">
                     <div id="amber-lightbox-content">
                         <div id="batch_status"></div>
                         <input type="submit" name="stop" id="stop" class="button button-small" value="Stop">
                     </div>
+				
                 </div>
             </form>
         </div>
@@ -406,6 +527,15 @@ class AmberDashboardPage
          margin-top:5px;
          border-radius:5px;
     }
+	
+	div.amber-panel {
+         float: left;
+         background:#ECECEC;
+         border:1px solid #CCC;
+         padding:0 10px;
+         margin-top:5px;
+         border-radius:5px;
+	}
 
     p.submit {
         float: left;
@@ -459,6 +589,23 @@ jQuery(document).ready(function($) {
     $("input#cache_now").click(function() { cache_all(); return false;});
     $("input#scan").click(function() {  scan_all(); return false;});
 
+    $("a.force_resave").click(function() {
+		url = $(this).attr("value"); //$(this).parent().parent().parent().parent().children('td').eq(1).text();
+		alert(url);
+		var data = { 'action': 'amber_force_cache_urls', '_wpnonce': $("#_wpnonce").val(),'urls':[url] };
+		//alert("Attempting to save URL's...")
+        $.post(ajaxurl, data, function(response) {
+            if (response) {
+                // Cached a page, check to see if there's another
+                show_status("Submitted request to save " + response);
+                //setTimeout(cache_one, 100);
+            } else {
+                show_status_done("Done preserving links");
+            }
+        });
+		return false;
+		});
+
     function show_status(s) {
         $("div#amber-lightbox").show();
         $("#batch_status").html(s);
@@ -486,6 +633,9 @@ jQuery(document).ready(function($) {
         show_status("Preserving links...");
         cache_one();
     }
+
+
+
 
     function scan_one() {
         var data = { 'action': 'amber_scan', '_wpnonce': $("#_wpnonce").val()};

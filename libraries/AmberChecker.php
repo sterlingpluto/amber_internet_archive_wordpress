@@ -14,12 +14,48 @@ class AmberChecker implements iAmberChecker {
   public function up($url) {
 
     $item = AmberNetworkUtils::open_url($url,  array(CURLOPT_FAILONERROR => FALSE));
+	//error_log(join(":", array(__FILE__, __METHOD__, json_encode($item))));
     if (isset($item['info']['http_code'])) {
-      return ($item['info']['http_code'] == 200);
+      //return ($item['info']['http_code'] == 200) ;
+	  if ($item['info']['http_code'] == 200)
+		  {
+		  return true;
+		  }
+		else
+			{
+			$pure_cURL_output = AmberChecker::is_up_pure_cURL($item['info']['url']);
+			if ($pure_cURL_output==True)
+				{
+				return True;
+				}
+			else
+				{
+				return False;
+				}
+			}
     } else {
       return false;
     }
   }
+
+  public function is_up_pure_cURL($url) {
+	$ch = curl_init($url);
+	$original_url = curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
+	$newurl = $original_url;
+	curl_setopt($ch, CURLOPT_URL, $newurl);
+	curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, FALSE);
+	curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, FALSE);
+	curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);  
+	$response = curl_exec($ch);
+	$response_info = curl_getinfo($ch);
+	curl_close($ch);
+	if ($response_info['http_code']==200)
+		{
+		return true;
+		}
+	return false;
+  }
+
 
   /** 
    * Look at the results from fetching a URL, tell whether the site is
@@ -27,7 +63,24 @@ class AmberChecker implements iAmberChecker {
    */
   private function is_up($fetch_result) {
     if (isset($fetch_result['info']['http_code'])) {
-      return ($fetch_result['info']['http_code'] == 200);
+		//error_log(join(":", array(__FILE__, __METHOD__, json_encode($fetch_result))));
+		if ($fetch_result['info']['http_code'] == 200)
+			{
+			return true;
+			}
+		else
+			{
+			$pure_cURL_output = AmberChecker::is_up_pure_cURL($fetch_result['info']['url']);
+			//error_log(join(":", array(__FILE__, __METHOD__, "pure_cURL_output",$pure_cURL_output)));
+			if ($pure_cURL_output==True)
+				{
+				return True;
+				}
+			else
+				{
+				return False;
+				}
+			}
     } else {
       return false;
     }
@@ -54,7 +107,7 @@ class AmberChecker implements iAmberChecker {
       /* If blocked by robots.txt, schedule next check for 6 months out */
       $next = $date->add(new DateInterval("P6M"))->getTimestamp();
       $status = isset($last_check['status']) ? $last_check['status'] : NULL;
-      error_log(join(":", array(__FILE__, __METHOD__, "Blocked by robots.txt", $url)));
+      //error_log(join(":", array(__FILE__, __METHOD__, "Blocked by robots.txt", $url)));
       $message = "Blocked by robots.txt";
     } else {
       $fetch_result = AmberNetworkUtils::open_url($url,  array(CURLOPT_FAILONERROR => FALSE));

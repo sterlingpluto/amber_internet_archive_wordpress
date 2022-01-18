@@ -42,6 +42,7 @@ class InternetArchiveStorage implements iAmberStorage {
 
   /* We cannot delete Internet Archive captures */
   public function delete($cache_metadata) {
+	//error_log(join(":", array(__FILE__, __METHOD__, "Attempted to delete internet archive storage")));
     return TRUE;
   }
 
