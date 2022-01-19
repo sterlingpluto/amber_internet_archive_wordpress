@@ -208,81 +208,6 @@ class AmberNetworkUtils {
     }
   }
 
-  public static function post_single_url($url, $post_fields_array, $additional_options = array(), $follow_redirects = TRUE) {
-    $options = array(
-      CURLOPT_POST => 1,
-      CURLOPT_FAILONERROR => TRUE,      /* Don't ignore HTTP errors */
-      CURLOPT_FOLLOWLOCATION => FALSE,  /* Don't follow redirects */
-      CURLOPT_CONNECTTIMEOUT => 5,      /* Connection timeout */
-      CURLOPT_TIMEOUT => 10,            /* Timeout for any CURL function */
-      CURLOPT_RETURNTRANSFER => 1,      /* Return the output as a string */
-      CURLOPT_HEADER => TRUE,           /* Return header information as part of the file */
-      CURLOPT_USERAGENT => AmberNetworkUtils::get_user_agent_string(),
-      CURLOPT_ENCODING => '',           /* Handle compressed data */
-	  CURLOPT_POSTFIELDS => http_build_query($post_fields_array)
-    );
-	error_log(join(":", array(__FILE__, __METHOD__, "Attempting to POST to",$url)));
-    $max_redirects = 5;
-    try {
-
-      $ch = curl_init($url);
-	  //error_log(join(":", array(__FILE__, __METHOD__, $url)));
-      if (curl_setopt_array($ch, $additional_options + $options) === FALSE) {
-        throw new RuntimeException(join(":", array(__FILE__, __METHOD__, "Error setting CURL options", $url, curl_error($ch))));
-      }
-      $original_url = curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
-      $newurl = $original_url;
-
-      do {
-        curl_setopt($ch, CURLOPT_URL, $newurl);
-        $response = curl_exec($ch);
-        $response_info = curl_getinfo($ch);
-		//error_log(join(":", array(__FILE__, __METHOD__, json_encode($response), $newurl)));
-        if (in_array($response_info['http_code'], array(301,302,307,308))) {
-          $newurl = $response_info['redirect_url'];
-        } else if ($meta = AmberNetworkUtils::find_meta_redirect($response)) {
-          $newurl = $meta;
-        } else {
-          break; // Not a redirect, so we're done
-        }
-        // if no scheme is present then the new url is a relative path and thus needs some extra care
-        if (!preg_match("/^https?:/i", $newurl)) {
-          $last_slash = strrpos($original_url,"/",9); // Starting at position 9 starts search past http://
-          if ($last_slash == (strlen($original_url) - 1)) {
-            $newurl = $original_url . $newurl;
-          } else if ($last_slash === FALSE) {
-            $newurl = join("/",array($original_url, $newurl));
-          } else {
-            $newurl = join("/",array(substr($original_url, 0, $last_slash), $newurl));
-          }
-        }
-      } while ((--$max_redirects) && $follow_redirects);
-      curl_close($ch);
-
-    } catch (RuntimeException $e) {
-      error_log($e->getMessage());
-      curl_close($ch);
-      return FALSE;
-    }
-	
-	if (!$max_redirects) {
-      return FALSE; // We ran out of redirects without getting a result
-    } else {
-      /* Split into header and body */
-      $header_size = $response_info['header_size'];
-      $header = substr($response, 0, $header_size-1);
-      $body = substr($response, $header_size);
-      $headers = AmberNetworkUtils::extract_headers($header);
-	  //error_log(join(":", array(__FILE__, __METHOD__, "POST request body",$body)));
-	  error_log(join(":", array(__FILE__, __METHOD__, "POST request header",json_encode($headers))));
-	  error_log(join(":", array(__FILE__, __METHOD__, "POST request info",json_encode($response_info))));
-      return array("headers" => $headers, "body" => $body, "info" => $response_info);
-    }
-  }
-  
-  
-
-
   /**
    * Open a single URL, and return an array with dictionary of header information and the contents
    * of the URL. Handle redirects ourselves, rather than using CURLOPT_FOLLOWLOCATION
@@ -320,7 +245,6 @@ class AmberNetworkUtils {
 		//error_log(join(":", array(__FILE__, __METHOD__, json_encode($response), $newurl)));
         if (in_array($response_info['http_code'], array(301,302,307,308))) {
           $newurl = $response_info['redirect_url'];
-		  error_log(join(":", array(__FILE__, __METHOD__, "Found new URL", $newurl)));
         } else if ($meta = AmberNetworkUtils::find_meta_redirect($response)) {
           $newurl = $meta;
         } else {

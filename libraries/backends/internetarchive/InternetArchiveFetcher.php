@@ -17,7 +17,7 @@ class InternetArchiveFetcher implements iAmberFetcher {
    * @return
    */
 	public function fetch($url) {
-	error_log(join(":", array(__FILE__, __METHOD__, "InternetArchiveFetcher Triggered")));
+	//error_log("InternetArchiveFetcher");
     if (!$url) {
       throw new RuntimeException("Empty URL");
     }
@@ -30,7 +30,7 @@ class InternetArchiveFetcher implements iAmberFetcher {
     $ia_result = AmberNetworkUtils::open_single_url($api_endpoint, $cURL_options_arr, TRUE);
 	
    // Make sure that we got a valid response from the Archive 
-	error_log(join(":", array(__FILE__, __METHOD__, json_encode($ia_result), $url)));
+	//error_log(join(":", array(__FILE__, __METHOD__, json_encode($ia_result), $url)));
 	
     if ($ia_result === FALSE) {      
 		//error_log(join(":", array(__FILE__, __METHOD__, "IA Result is False")));
@@ -52,7 +52,7 @@ class InternetArchiveFetcher implements iAmberFetcher {
 	if (!isset($ia_result_body['archived_snapshots']["closest"])) {
 		//error_log(join(":", array(__FILE__, __METHOD__, "No archived_snapshots")));
       $link_is_live = (new AmberChecker)->up($url);
-	  error_log(join(":", array(__FILE__, __METHOD__, "link_is_live",$link_is_live ? 'true' : 'false')));
+	  //error_log(join(":", array(__FILE__, __METHOD__, "link_is_live",$link_is_live ? 'true' : 'false')));
 	  if ($link_is_live==TRUE)
 		{
 		//error_log(join(":", array(__FILE__, __METHOD__, "Site is up.",$url)));
@@ -82,14 +82,13 @@ class InternetArchiveFetcher implements iAmberFetcher {
     if (!$url) {
       throw new RuntimeException("Empty URL");
     }
-	error_log(join(":", array(__FILE__, __METHOD__, "Save to InternetArchive Triggered")));
+
     $api_endpoint = join("",array(
       $this->archiveUrl,
       "/save/",
       $url));
     InternetArchiveFetcher::enqueue_check_links(array($url)); //needed because internet archive won't return right away and availibility API does not update instantly.
-    //$ia_result = AmberNetworkUtils::open_single_url($api_endpoint, array(), FALSE);
-	$ia_result = AmberNetworkUtils::post_single_url($api_endpoint, array("url" => $url,"capture_all" => "on"),array(),FALSE);
+    $ia_result = AmberNetworkUtils::open_single_url($api_endpoint, array(), FALSE);
 	//error_log(join(":", array(__FILE__, __METHOD__, "Attempted to save to internet archive",$url)));
     /* Make sure that we got a valid response from the Archive */
 
@@ -134,5 +133,4 @@ class InternetArchiveFetcher implements iAmberFetcher {
 			$wpdb->query($query);
 		}
 	}
-	
 }

@@ -49,7 +49,7 @@ class AmberChecker implements iAmberChecker {
 	$response = curl_exec($ch);
 	$response_info = curl_getinfo($ch);
 	curl_close($ch);
-	if (($response_info['http_code']==200) || ($response_info['http_code']==301))
+	if ($response_info['http_code']==200)
 		{
 		return true;
 		}

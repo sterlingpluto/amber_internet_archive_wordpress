@@ -40,12 +40,6 @@ class AmberInstall {
 		  locked int,
 		  PRIMARY KEY  (id)
 		)";
-		/*$tables['amber_internet_archive_check_later'] =  "(
-		  id VARCHAR(32) NOT NULL,
-		  url VARCHAR(2000) NOT NULL,
-		  provider int,
-		  PRIMARY KEY  (id)
-		)";*/
 		return $tables;
 	}
 

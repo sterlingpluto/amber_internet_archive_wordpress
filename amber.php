@@ -421,18 +421,14 @@ class Amber {
 	}
 
 	private static function cache_link($item, $force = false) {
-		error_log(join(":", array(__FILE__, __METHOD__, "cache_link triggered")));
+		//error_log(join(":", array(__FILE__, __METHOD__, "cache_link")));
 		$checker = Amber::get_checker();
 		$status =  Amber::get_status();
 		$fetcher = Amber::get_fetcher();
 		$availability = Amber::get_availability();
-		if ($item=='')
-			{
-			error_log(join(":", array(__FILE__, __METHOD__, "Empty URL or end of list")));
-			return false;
-			}
+
 		/* Check whether the site is up */
-		$last_check = $status->get_check($item,$force);
+		$last_check = $status->get_check($item);
 		if (($update = $checker->check(empty($last_check) ? array('url' => $item) : $last_check, $force)) !== false) {
 			/* There's an updated check result to save */
 			//error_log(join(":", array(__FILE__, __METHOD__, "There's an updated check result to save")));
@@ -443,22 +439,19 @@ class Amber {
 
 			/* Now cache the item if we should */
 	  		$strategy = Amber::get_option('amber_update_strategy', 0);
-			error_log(join(":", array(__FILE__, __METHOD__, "update['status']",$update['status'])));
+			/*error_log(join(":", array(__FILE__, __METHOD__, "update['status']",$update['status'])));
 			error_log(join(":", array(__FILE__, __METHOD__, "strategy",$strategy)));
-			error_log(join(":", array(__FILE__, __METHOD__, "status->has_cache(item)",$status->has_cache($item) ? 'true' : 'false')));
-			error_log(join(":", array(__FILE__, __METHOD__, "(!strategy || !status->has_cache(item)))",(!$strategy || !$status->has_cache($item))) ));
+			error_log(join(":", array(__FILE__, __METHOD__, "status->has_cache(item)",$status->has_cache($item))));
+			error_log(join(":", array(__FILE__, __METHOD__, "(!strategy || !status->has_cache(item)))",(!$strategy || !$status->has_cache($item))) ));*/
 			if ($update['status'] && (!$strategy || !$status->has_cache($item))) {
 
 				/* Save the item to the primary storage location */
-				error_log(join(":", array(__FILE__, __METHOD__, "Attempting to fetch")));
+				//error_log(join(":", array(__FILE__, __METHOD__, "Attempting to fetch")));
 				$result = Amber::fetch_item($item, $fetcher, $status);
 
 				/* Save the item to any alternate storage locations */
 				foreach (Amber::get_alternate_fetchers() as $alternate_fetcher) {
-					if ($alternate_fetcher!=$fetcher){
-						Amber::fetch_item($item, $alternate_fetcher, $status);
-					}
-					
+					Amber::fetch_item($item, $alternate_fetcher, $status);
 				}
 
 				if ($result) {
@@ -517,56 +510,6 @@ class Amber {
 	  			"DELETE from ${prefix}amber_queue where url = %s",
 	  			array($row['url'])
 	  			));
-  			return $row['url'];
-  		} else {
-  			return "";
-  		}
-	}
-	
-	
-	/* Re-check ALL links found in amber_check database (where dashboard table populates from) and save it to the cache.
-	*/
-	public static function recheck_link_all() {
-		global $wpdb;
-		$prefix = $wpdb->prefix;
-		$row = $wpdb->get_row(
-			"SELECT c.url FROM ${prefix}amber_check c ORDER BY last_checked ASC LIMIT 1",
-			ARRAY_A);
-	  	if ($row and $row['url']) {
-	  		/*$wpdb->query($wpdb->prepare(
-	  			"UPDATE ${prefix}amber_check SET locked = %d WHERE url = %s",
-	  			array(time(), $row['url'])
-	  			));*/
-		    Amber::cache_link($row['url'],TRUE);
-  			/*$wpdb->query($wpdb->prepare(
-	  			"DELETE from ${prefix}amber_queue where url = %s",
-	  			array($row['url'])
-	  			));*/
-  			return $row['url'];
-  		} else {
-  			return "";
-  		}
-	}
-	
-	/* Re-check links found in amber_check database (where dashboard table populates from) and save it to the cache.
-	*/
-	public static function recheck_link() {
-		global $wpdb;
-		$prefix = $wpdb->prefix;
-		$row = $wpdb->get_row(
-			"SELECT c.url FROM ${prefix}amber_check c WHERE c.status = 0 ORDER BY last_checked ASC LIMIT 1",
-			ARRAY_A);
-	  	if ($row and $row['url']) {
-	  		/*$wpdb->query($wpdb->prepare(
-	  			"UPDATE ${prefix}amber_check SET locked = %d WHERE url = %s",
-	  			array(time(), $row['url'])
-	  			));*/
-		    //Amber::cache_link($row['url'],TRUE);
-			
-  			/*$wpdb->query($wpdb->prepare(
-	  			"DELETE from ${prefix}amber_queue where url = %s",
-	  			array($row['url'])
-	  			));*/
   			return $row['url'];
   		} else {
   			return "";
@@ -926,35 +869,6 @@ EOF;
 		die();
 	}
 
-	/* Respond to an ajax call to re-check links immediately
-	First step is re-queueing all the links.
-	 */
-	public static function ajax_recheck_urls_requeue() {
-		check_ajax_referer( 'amber_dashboard' );
-		error_log(join(":", array(__FILE__, __METHOD__, "Re-check request received")));
-	    update_option(AMBER_VAR_LAST_CHECK_RUN, time());
-		//$url = Amber::recheck_link();
-		global $wpdb;
-		$prefix = $wpdb->prefix;
-		$all_urls_to_recheck = $wpdb->get_results(
-			"SELECT c.url FROM ${prefix}amber_check c WHERE c.status = 0 ORDER BY last_checked ASC",
-			ARRAY_A);
-		error_log(join(":", array(__FILE__, __METHOD__, json_encode($all_urls_to_recheck))));
-		foreach ($all_urls_to_recheck as $url_row)
-			{
-			$link = $url_row["url"];
-			error_log(join(":", array(__FILE__, __METHOD__, $link)));
-			$query = $wpdb->prepare(
-						"INSERT IGNORE INTO ${prefix}amber_queue (id, url, created) VALUES(%s, %s, %d)",
-						array(md5($link), $link, time()));
-					$wpdb->query($query);
-			$wpdb->query($query);
-			}
-		error_log(join(":", array(__FILE__, __METHOD__, "Done re-queuing")));
-		print "";
-		die();
-	}
-
 	/* Respond to an ajax call from the dashboard as part of the
 	   "Cache all links" process. Returning an empty string signifies
 	   that all links have been cached.
@@ -976,14 +890,11 @@ EOF;
 		$urls = $_POST['urls'];
 	    //update_option(AMBER_VAR_LAST_CHECK_RUN, time());
 		//$url = Amber::dequeue_link();
-		error_log(join(":", array(__FILE__, __METHOD__, "ajax_force_cache_urls triggered",json_encode($urls))));
 		foreach ($urls as $url) {
 			Amber::cache_link($url,TRUE);
 			print $url;
 			}
 		//error_log(join(":", array(__FILE__, __METHOD__, "ajax_force_cache_urls",json_encode($urls))));
-		//print("");
-		error_log(join(":", array(__FILE__, __METHOD__, "Done submitting",json_encode($urls))));
 		die();
 	}
 		/* Respond to a bulk action call from the dashboard as part of the
@@ -1295,5 +1206,5 @@ add_action( 'wp_ajax_amber_status', array('Amber', 'ajax_get_url_status') );
 add_action( 'wp_ajax_nopriv_amber_memento', array('Amber', 'ajax_get_memento') );
 add_action( 'wp_ajax_amber_memento', array('Amber', 'ajax_get_memento') );
 add_action( 'wp_ajax_amber_force_cache_urls', array('Amber', 'ajax_force_cache_urls') );
-add_action( 'wp_ajax_amber_recheck_urls_requeue', array('Amber', 'ajax_recheck_urls_requeue') );
+
 ?>
