@@ -97,7 +97,7 @@ class Amber_List_Table extends WP_List_Table {
                     $delete_url .= "&${param}=" . $_REQUEST[$param];
                 }
             }
-            $delete_url = wp_nonce_url($delete_url, 'delete_link_' . $item['id']);
+            //$delete_url = wp_nonce_url($delete_url, 'delete_link_' . $item['id']);
             $actions['delete'] = "<a href='${delete_url}'>Delete</a>";
         }
 
@@ -276,7 +276,7 @@ class Amber_List_Table extends WP_List_Table {
 				}*/
 			}
 		}
-    public static function bulk_action_mass_resave_force_cache_urls($urls) {
+    /*public static function bulk_action_mass_resave_force_cache_urls($urls) {
 		//check_ajax_referer( 'amber_dashboard' );
 		//$urls = $_POST['urls'];
 	    //update_option(AMBER_VAR_LAST_CHECK_RUN, time());
@@ -289,7 +289,7 @@ class Amber_List_Table extends WP_List_Table {
 			}
 		//error_log(join(":", array(__FILE__, __METHOD__, "ajax_force_cache_urls",json_encode($urls))));
 		//die();
-	}
+	}*/
 
     function prepare_items() {
         $per_page = 20;
@@ -500,6 +500,7 @@ class AmberDashboardPage
                     <?php submit_button("Delete all snapshots", "small", "delete_all"); ?>
                     <?php submit_button("Scan content for links to preserve", "small", "scan"); ?>
                     <?php submit_button("Snapshot all new links", "small", "cache_now"); ?>
+					<?php submit_button("Re-check all checked links", "small", "recheck_links"); ?>
                     <?php submit_button("Export list of snapshots", "small", "export"); ?>
 					
                 </div>
@@ -588,16 +589,19 @@ jQuery(document).ready(function($) {
 
     $("input#cache_now").click(function() { cache_all(); return false;});
     $("input#scan").click(function() {  scan_all(); return false;});
+	$("input#recheck_links").click(function() {  recheck_all(); return false;});
 
     $("a.force_resave").click(function() {
 		url = $(this).attr("value"); //$(this).parent().parent().parent().parent().children('td').eq(1).text();
-		alert(url);
+		//alert("Preparing to save " + url);
 		var data = { 'action': 'amber_force_cache_urls', '_wpnonce': $("#_wpnonce").val(),'urls':[url] };
 		//alert("Attempting to save URL's...")
         $.post(ajaxurl, data, function(response) {
+			console.log(response);
             if (response) {
                 // Cached a page, check to see if there's another
-                show_status("Submitted request to save " + response);
+				show_status("Submitted request to save " + response);
+                show_status_done("Submitted request to save " + response);
                 //setTimeout(cache_one, 100);
             } else {
                 show_status_done("Done preserving links");
@@ -617,6 +621,7 @@ jQuery(document).ready(function($) {
     }
 
     function cache_one() {
+		//console.log("Inside cache_one");
         var data = { 'action': 'amber_cache', '_wpnonce': $("#_wpnonce").val() };
         $.post(ajaxurl, data, function(response) {
             if (response) {
@@ -633,8 +638,29 @@ jQuery(document).ready(function($) {
         show_status("Preserving links...");
         cache_one();
     }
+	
+	
 
+    function recheck_all () {
+        show_status("Re-checking cached links...");
+        requeue_checked_links();
+    }
 
+    function requeue_checked_links() {
+        var data_requeue = { 'action': 'amber_recheck_urls_requeue', '_wpnonce': $("#_wpnonce").val() };
+		//var data_recache = { 'action': 'amber_recheck_urls_requeue', '_wpnonce': $("#_wpnonce").val() };
+        $.post(ajaxurl, data_requeue, function(response) {
+            if (response) {
+                // Cached a page, check to see if there's another
+                show_status("Recieved from server " + response);
+                //setTimeout(recheck_one, 100);
+            } else {
+                show_status("Requeued all URLs to re-check...");
+            }
+        });
+		//console.log("Done with requeueing");
+        cache_all ();
+    }
 
 
     function scan_one() {
