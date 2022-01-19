@@ -3,7 +3,8 @@ All other Amber back ends and functionality are left unchanged.
 
 Known Issues:
 =================
-* URL's that are currently accessible and return 200 HTTP code with "vanilla" PHP cURL requests sometimes return other codes like 301 through AmberNetworkUtils' code. * Archive requests sometimes hang.
+* URL's that are currently accessible and return 200 HTTP code with "vanilla" PHP cURL requests sometimes return other codes like 301 through AmberNetworkUtils' code. 
+* * Archive requests sometimes hang.
 * Cron job functionality not tested
 * Code is possibly not secure.  Do not use in production environments!!!
 
